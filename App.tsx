@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
 import { detectSensitiveAreas } from './services/geminiService';
 import type { Point, DrawingRegion, RectangleRegion } from './types';
 import { UploadIcon, SparklesIcon, TrashIcon, DownloadIcon, CrossIcon, RectangleIcon, CircleIcon, PencilIcon, UndoIcon, RedoIcon, PointerIcon } from './components/Icons';
@@ -24,12 +24,57 @@ const App: React.FC = () => {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
+  const imageWrapperRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(new Image());
 
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawStartPoint, setDrawStartPoint] = useState<Point | null>(null);
   const [currentRect, setCurrentRect] = useState<RectangleRegion | null>(null);
   const [currentPath, setCurrentPath] = useState<Point[]>([]);
+  const [renderedSize, setRenderedSize] = useState({ width: 0, height: 0 });
+
+  useLayoutEffect(() => {
+    const calculateSize = () => {
+        if (!imageContainerRef.current || !imageRef.current.naturalWidth) {
+            setRenderedSize({ width: 0, height: 0 });
+            return;
+        }
+
+        const container = imageContainerRef.current;
+        const containerWidth = container.clientWidth;
+        const containerHeight = container.clientHeight;
+        const imageWidth = imageRef.current.naturalWidth;
+        const imageHeight = imageRef.current.naturalHeight;
+
+        if (containerWidth === 0 || containerHeight === 0 || imageWidth === 0 || imageHeight === 0) return;
+
+        const imageAspectRatio = imageWidth / imageHeight;
+        const containerAspectRatio = containerWidth / containerHeight;
+
+        let newWidth, newHeight;
+
+        if (imageAspectRatio > containerAspectRatio) {
+            newWidth = containerWidth;
+            newHeight = containerWidth / imageAspectRatio;
+        } else {
+            newHeight = containerHeight;
+            newWidth = containerHeight * imageAspectRatio;
+        }
+        
+        setRenderedSize({ width: newWidth, height: newHeight });
+    };
+
+    calculateSize();
+
+    const image = imageRef.current;
+    image.addEventListener('load', calculateSize);
+    window.addEventListener('resize', calculateSize);
+
+    return () => {
+        image.removeEventListener('load', calculateSize);
+        window.removeEventListener('resize', calculateSize);
+    };
+  }, [imageUrl]);
 
   const updateRegions = useCallback((updater: (prevRegions: DrawingRegion[]) => DrawingRegion[]) => {
     setHistory(prevHistory => {
@@ -55,8 +100,6 @@ const App: React.FC = () => {
 
     regions.forEach(region => {
       ctx.save();
-
-      // Create clipping path
       ctx.beginPath();
       if (region.type === 'rectangle' || region.type === 'ellipse') {
         if (region.type === 'ellipse') {
@@ -73,28 +116,22 @@ const App: React.FC = () => {
       }
       ctx.clip();
 
-      // Apply effect within clipping path
       if (effectType === 'blur') {
         ctx.filter = `blur(${blurAmount}px)`;
         ctx.drawImage(canvas, 0, 0);
       } else if (effectType === 'pixelate') {
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        const points = region.type === 'path' ? region.points : [ {x: region.x, y: region.y}, {x: region.x + region.width, y: region.y + region.height} ];
-        points.forEach(p => { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); });
-        const rect = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-
-        if (rect.width > 0 && rect.height > 0) {
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-            if (tempCtx) {
-                ctx.imageSmoothingEnabled = false;
-                const size = pixelationLevel;
-                tempCanvas.width = Math.max(1, rect.width / size);
-                tempCanvas.height = Math.max(1, rect.height / size);
-                tempCtx.drawImage(image, rect.x, rect.y, rect.width, rect.height, 0, 0, tempCanvas.width, tempCanvas.height);
-                ctx.drawImage(tempCanvas, 0, 0, tempCanvas.width, tempCanvas.height, rect.x, rect.y, rect.width, rect.height);
-                ctx.imageSmoothingEnabled = true;
-            }
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        if (tempCtx) {
+          ctx.imageSmoothingEnabled = false;
+          const size = pixelationLevel;
+          const w = image.naturalWidth;
+          const h = image.naturalHeight;
+          tempCanvas.width = Math.max(1, w / size);
+          tempCanvas.height = Math.max(1, h / size);
+          tempCtx.drawImage(image, 0, 0, tempCanvas.width, tempCanvas.height);
+          ctx.drawImage(tempCanvas, 0, 0, tempCanvas.width, tempCanvas.height, 0, 0, w, h);
+          ctx.imageSmoothingEnabled = true;
         }
       }
       
@@ -106,20 +143,31 @@ const App: React.FC = () => {
   }, [regions, effectType, pixelationLevel, blurAmount]);
   
   useEffect(() => {
-    const image = imageRef.current;
-    const handleLoad = () => {
-        redrawCanvas();
-    };
-    image.addEventListener('load', handleLoad);
-
     if (imageUrl) {
+        imageRef.current.src = imageUrl;
+    }
+  }, [imageUrl]);
+
+  useEffect(() => {
+    const image = imageRef.current;
+
+    const applyEffects = () => {
+      if (image.naturalWidth > 0 && image.naturalHeight > 0) {
         redrawCanvas();
+      }
+    };
+
+    if (image.complete) {
+      applyEffects();
     }
 
+    image.addEventListener('load', applyEffects);
+
     return () => {
-        image.removeEventListener('load', handleLoad);
+      image.removeEventListener('load', applyEffects);
     };
-  }, [redrawCanvas, imageUrl]);
+  }, [redrawCanvas]);
+
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -127,7 +175,6 @@ const App: React.FC = () => {
       setImageFile(file);
       const url = URL.createObjectURL(file);
       setImageUrl(url);
-      imageRef.current.src = url;
       setHistory([[]]);
       setHistoryIndex(0);
       setError(null);
@@ -175,13 +222,17 @@ const App: React.FC = () => {
   };
 
   const getMousePos = (e: React.MouseEvent<HTMLDivElement>): Point | null => {
-    const container = imageContainerRef.current;
+    const wrapper = imageWrapperRef.current;
     const image = imageRef.current;
-    if (!container || !image.src) return null;
-    const rect = container.getBoundingClientRect();
-    const scaleX = image.naturalWidth / container.clientWidth;
-    const scaleY = image.naturalHeight / container.clientHeight;
-    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+    if (!wrapper || !image.src || !image.naturalWidth) return null;
+    
+    const rect = wrapper.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    const scale = image.naturalWidth / wrapper.clientWidth;
+    
+    return { x: mouseX * scale, y: mouseY * scale };
   };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -214,6 +265,7 @@ const App: React.FC = () => {
   };
 
   const handleMouseUp = () => {
+    if (!isDrawing) return;
     if (drawingTool === 'freehand') {
       if (currentPath.length > 1) {
         updateRegions(prev => [...prev, { type: 'path', points: currentPath }]);
@@ -234,40 +286,27 @@ const App: React.FC = () => {
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
 
-  const handleUndo = () => {
-    if (canUndo) setHistoryIndex(historyIndex - 1);
-  };
-  const handleRedo = () => {
-    if (canRedo) setHistoryIndex(historyIndex + 1);
-  };
+  const handleUndo = () => { if (canUndo) setHistoryIndex(historyIndex - 1); };
+  const handleRedo = () => { if (canRedo) setHistoryIndex(historyIndex + 1); };
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200 flex flex-col p-4 md:p-8 font-sans">
       <header className="text-center mb-8">
-        <h1 className="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600">
-          Screenshot Privacy Guard
-        </h1>
-        <p className="text-gray-400 mt-2 text-lg">
-          Protect sensitive information with blur, pixelation, and powerful drawing tools.
-        </p>
+        <h1 className="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600">Screenshot Privacy Guard</h1>
+        <p className="text-gray-400 mt-2 text-lg">Protect sensitive information with blur, pixelation, and powerful drawing tools.</p>
       </header>
-
       <main className="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-8">
         <aside className="lg:col-span-1 bg-gray-800/50 rounded-lg p-6 flex flex-col border border-gray-700">
           <h2 className="text-2xl font-semibold mb-6 border-b border-gray-600 pb-4">Controls</h2>
-          
           <div className="flex flex-col space-y-4">
             <label htmlFor="file-upload" className="w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg cursor-pointer transition-colors duration-200 flex items-center justify-center gap-2">
               <UploadIcon />{imageFile ? "Change Image" : "Upload Image"}
             </label>
             <input id="file-upload" type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
-          
             <button onClick={handleAutoDetect} disabled={!imageFile || isDetecting} className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-900/50 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2">
               {isDetecting ? <div className="w-5 h-5 border-2 border-t-transparent border-white rounded-full animate-spin"></div> : <SparklesIcon />} Auto-detect PII
             </button>
-            
             <div className="bg-gray-700/50 p-3 rounded-lg space-y-4">
-              {/* Drawing Tool & Effect Style */}
               <div>
                   <h3 className="text-lg font-semibold mb-2 text-gray-300">Tool</h3>
                   <div className="flex bg-gray-900 rounded-lg p-1 space-x-1">
@@ -291,7 +330,6 @@ const App: React.FC = () => {
                 </div>
               </div>
             </div>
-            
             <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2 flex space-x-4">
                   <button onClick={handleUndo} disabled={!canUndo} className="w-1/2 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-800 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"><UndoIcon />Undo</button>
@@ -302,64 +340,56 @@ const App: React.FC = () => {
             </div>
             {error && <p className="text-red-400 text-center">{error}</p>}
           </div>
-          
           <div className="mt-auto pt-6 text-gray-400 text-sm">
             <h3 className="font-semibold text-lg text-gray-200 mb-2">How to use:</h3>
             <ol className="list-decimal list-inside space-y-2">
-                <li>Upload an image.</li>
-                <li>Select a drawing tool, effect, and intensity.</li>
-                <li>Click "Auto-detect" or manually draw on the image.</li>
-                <li>Switch to the Pointer tool (hand icon) to click/tap regions to delete.</li>
-                <li>Download your protected image.</li>
+                <li>Upload an image.</li><li>Select a tool, effect, and intensity.</li><li>Click "Auto-detect" or manually draw on the image.</li><li>Switch to the Pointer tool to click/tap regions to delete.</li><li>Download your protected image.</li>
             </ol>
           </div>
         </aside>
-
         <section className="lg:col-span-2 bg-gray-800/50 rounded-lg p-4 flex items-center justify-center border border-gray-700 min-h-[400px] lg:min-h-0">
-          <div ref={imageContainerRef} className={`w-full h-full relative flex items-center justify-center overflow-hidden ${drawingTool === 'pointer' ? 'cursor-default' : 'cursor-crosshair'}`} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+          <div ref={imageContainerRef} className={`w-full h-full flex items-center justify-center overflow-hidden ${drawingTool === 'pointer' ? 'cursor-default' : 'cursor-crosshair'}`} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
             {!imageUrl ? (
               <div className="text-center text-gray-500"><UploadIcon className="w-16 h-16 mx-auto mb-4" /><p className="text-xl">Your image will appear here</p></div>
             ) : (
-              <>
-                <canvas ref={canvasRef} className="max-w-full max-h-full object-contain" style={{ display: 'none' }} />
-                <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center pointer-events-none">
-                    <img alt="Processed screenshot" src={processedImageUrl ?? ''} className="max-w-full max-h-full object-contain" />
-                </div>
+              <div ref={imageWrapperRef} className="relative" style={{ width: renderedSize.width, height: renderedSize.height }}>
+                <canvas ref={canvasRef} style={{ display: 'none' }} />
+                <img alt="Processed screenshot" src={processedImageUrl ?? ''} className="w-full h-full block" />
                 {isDetecting && (
                   <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center">
-                    <div className="w-12 h-12 border-4 border-t-transparent border-cyan-400 rounded-full animate-spin"></div><p className="mt-4 text-lg">Analyzing image...</p>
+                    <div className="w-12 h-12 border-4 border-t-transparent border-cyan-400 rounded-full animate-spin"></div>
+                    <p className="mt-4 text-lg">Analyzing image...</p>
                   </div>
                 )}
-                <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
-                    {currentRect && (<div className="absolute border-2 border-dashed border-cyan-400 bg-cyan-400/20" style={{ left: `${(currentRect.x / imageRef.current.naturalWidth) * 100}%`, top: `${(currentRect.y / imageRef.current.naturalHeight) * 100}%`, width: `${(currentRect.width / imageRef.current.naturalWidth) * 100}%`, height: `${(currentRect.height / imageRef.current.naturalHeight) * 100}%`, borderRadius: drawingTool === 'ellipse' ? '50%' : '0' }}/>)}
-                    {currentPath.length > 1 && (<svg width="100%" height="100%" viewBox={`0 0 ${imageRef.current.naturalWidth} ${imageRef.current.naturalHeight}`} style={{position: 'absolute', top: 0, left: 0}}><polyline points={currentPath.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke="rgba(0, 255, 255, 0.5)" strokeWidth="2" /></svg>)}
-                </div>
-                {!isDrawing && regions.map((region, index) => {
-                  const getBoundingBox = () => {
-                      if (region.type === 'path') {
-                          if (region.points.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
-                          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                          region.points.forEach(p => { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); });
-                          return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-                      }
-                      return region;
-                  };
-                  const box = getBoundingBox();
-                  const isPointerMode = drawingTool === 'pointer';
-                  const regionClasses = isPointerMode 
-                    ? "border-2 border-solid border-red-500 cursor-pointer" 
-                    : "border-2 border-dashed border-cyan-400/50 pointer-events-none";
-
-                  return (
-                   <div 
-                     key={index} 
-                     className={`absolute transition-colors ${regionClasses}`}
-                     style={{ left: `${(box.x / imageRef.current.naturalWidth) * 100}%`, top: `${(box.y / imageRef.current.naturalHeight) * 100}%`, width: `${(box.width / imageRef.current.naturalWidth) * 100}%`, height: `${(box.height / imageRef.current.naturalHeight) * 100}%` }}
-                     onClick={isPointerMode ? (e) => { e.stopPropagation(); removeRegion(index); } : undefined}
-                   />
-                  )
-                })}
-              </>
+                <svg viewBox={`0 0 ${imageRef.current.naturalWidth || 1} ${imageRef.current.naturalHeight || 1}`} className="absolute top-0 left-0 w-full h-full" style={{ overflow: 'visible' }}>
+                  {isDrawing && currentRect && (
+                      drawingTool === 'rectangle' ? (
+                          <rect x={currentRect.x} y={currentRect.y} width={currentRect.width} height={currentRect.height} fill="rgba(34, 211, 238, 0.2)" stroke="rgba(34, 211, 238, 1)" strokeWidth="2" strokeDasharray="4" style={{ vectorEffect: 'non-scaling-stroke' }} />
+                      ) : (
+                          <ellipse cx={currentRect.x + currentRect.width / 2} cy={currentRect.y + currentRect.height / 2} rx={currentRect.width / 2} ry={currentRect.height / 2} fill="rgba(34, 211, 238, 0.2)" stroke="rgba(34, 211, 238, 1)" strokeWidth="2" strokeDasharray="4" style={{ vectorEffect: 'non-scaling-stroke' }} />
+                      )
+                  )}
+                  {isDrawing && currentPath.length > 1 && (
+                      <path d={currentPath.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x},${p.y}`).join(' ')} fill="none" stroke="rgba(34, 211, 238, 0.8)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ vectorEffect: 'non-scaling-stroke' }} />
+                  )}
+                  {!isDrawing && regions.map((region, index) => {
+                      const isPointerMode = drawingTool === 'pointer';
+                      const commonProps = {
+                          fill: isPointerMode ? "transparent" : "none",
+                          stroke: isPointerMode ? 'rgba(239, 68, 68, 1)' : 'rgba(34, 211, 238, 0.5)',
+                          strokeWidth: 2,
+                          strokeDasharray: isPointerMode ? 'none' : '4 4',
+                          className: `transition-colors ${isPointerMode ? 'cursor-pointer' : 'pointer-events-none'}`,
+                          style: { vectorEffect: 'non-scaling-stroke' },
+                          onClick: isPointerMode ? (e: React.MouseEvent) => { e.stopPropagation(); removeRegion(index); } : undefined,
+                      };
+                      if (region.type === 'rectangle') return <rect key={index} x={region.x} y={region.y} width={region.width} height={region.height} {...commonProps} />;
+                      if (region.type === 'ellipse') return <ellipse key={index} cx={region.x + region.width / 2} cy={region.y + region.height / 2} rx={region.width / 2} ry={region.height / 2} {...commonProps} />;
+                      if (region.type === 'path') return <path key={index} d={region.points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')} {...commonProps} />;
+                      return null;
+                  })}
+                </svg>
+              </div>
             )}
           </div>
         </section>

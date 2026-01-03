@@ -49,7 +49,7 @@ export const CircleIcon: React.FC<IconProps> = ({ className = "w-6 h-6" }) => (
 
 export const PencilIcon: React.FC<IconProps> = ({ className = "w-6 h-6" }) => (
     <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L13.196 5.232z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
     </svg>
 );
 
@@ -67,6 +67,6 @@ export const RedoIcon: React.FC<IconProps> = ({ className = "w-6 h-6" }) => (
 
 export const PointerIcon: React.FC<IconProps> = ({ className = "w-6 h-6" }) => (
     <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zm0 0l2.51 2.225A2.25 2.25 0 0016.192 16.6l-2.51-2.225m0 0l2.51 2.225M13.684 16.6l-5.227-7.917c-.569-1.034.23-2.31.99-2.31h8.138c.76 0 1.558 1.276.99 2.31l-5.227 7.917z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 11l19-9-9 19-2-8-8-2z" />
     </svg>
 );
