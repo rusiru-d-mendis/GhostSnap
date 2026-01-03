@@ -1,7 +1,7 @@
 
-# Screenshot Privacy Guard
+# GhostSnap
 
-![Screenshot of the App](Screenshot%202026-01-03%20202454.png)
+![Screenshot of the App](https://i.imgur.com/8aVz32x.png)
 
 An intelligent Progressive Web App (PWA) built with React and the Gemini API to automatically detect and anonymize sensitive information in screenshots. Protect your privacy with powerful AI-driven detection and intuitive manual editing tools.
 
@@ -49,8 +49,8 @@ To run this project on your local machine, follow these steps:
 
 1.  **Clone the Repository**
     ```bash
-    git clone https://github.com/your-username/screenshot-privacy-guard.git
-    cd screenshot-privacy-guard
+    git clone https://github.com/your-username/ghostsnap.git
+    cd ghostsnap
     ```
 
 2.  **Set Up Environment Variables**

@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'screenshot-privacy-guard-v1';
+const CACHE_NAME = 'ghostsnap-v1';
 const urlsToCache = [
   '/',
   '/index.html',

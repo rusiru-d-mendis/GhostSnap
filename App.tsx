@@ -216,7 +216,7 @@ const App: React.FC = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const link = document.createElement('a');
-    link.download = 'privacy-screenshot.png';
+    link.download = 'ghostsnap-image.png';
     link.href = canvas.toDataURL('image/png');
     link.click();
   };
@@ -292,7 +292,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200 flex flex-col p-4 md:p-8 font-sans">
       <header className="text-center mb-8">
-        <h1 className="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600">Screenshot Privacy Guard</h1>
+        <h1 className="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600">GhostSnap</h1>
         <p className="text-gray-400 mt-2 text-lg">Protect sensitive information with blur, pixelation, and powerful drawing tools.</p>
       </header>
       <main className="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -364,13 +364,16 @@ const App: React.FC = () => {
                 <svg viewBox={`0 0 ${imageRef.current.naturalWidth || 1} ${imageRef.current.naturalHeight || 1}`} className="absolute top-0 left-0 w-full h-full" style={{ overflow: 'visible' }}>
                   {isDrawing && currentRect && (
                       drawingTool === 'rectangle' ? (
-                          <rect x={currentRect.x} y={currentRect.y} width={currentRect.width} height={currentRect.height} fill="rgba(34, 211, 238, 0.2)" stroke="rgba(34, 211, 238, 1)" strokeWidth="2" strokeDasharray="4" style={{ vectorEffect: 'non-scaling-stroke' }} />
+                          // Fix: Added 'as const' to correctly type the vectorEffect style property for SVG elements.
+                          <rect x={currentRect.x} y={currentRect.y} width={currentRect.width} height={currentRect.height} fill="rgba(34, 211, 238, 0.2)" stroke="rgba(34, 211, 238, 1)" strokeWidth="2" strokeDasharray="4" style={{ vectorEffect: 'non-scaling-stroke' as const }} />
                       ) : (
-                          <ellipse cx={currentRect.x + currentRect.width / 2} cy={currentRect.y + currentRect.height / 2} rx={currentRect.width / 2} ry={currentRect.height / 2} fill="rgba(34, 211, 238, 0.2)" stroke="rgba(34, 211, 238, 1)" strokeWidth="2" strokeDasharray="4" style={{ vectorEffect: 'non-scaling-stroke' }} />
+                          // Fix: Added 'as const' to correctly type the vectorEffect style property for SVG elements.
+                          <ellipse cx={currentRect.x + currentRect.width / 2} cy={currentRect.y + currentRect.height / 2} rx={currentRect.width / 2} ry={currentRect.height / 2} fill="rgba(34, 211, 238, 0.2)" stroke="rgba(34, 211, 238, 1)" strokeWidth="2" strokeDasharray="4" style={{ vectorEffect: 'non-scaling-stroke' as const }} />
                       )
                   )}
                   {isDrawing && currentPath.length > 1 && (
-                      <path d={currentPath.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x},${p.y}`).join(' ')} fill="none" stroke="rgba(34, 211, 238, 0.8)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ vectorEffect: 'non-scaling-stroke' }} />
+                      // Fix: Added 'as const' to correctly type the vectorEffect style property for SVG elements.
+                      <path d={currentPath.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x},${p.y}`).join(' ')} fill="none" stroke="rgba(34, 211, 238, 0.8)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ vectorEffect: 'non-scaling-stroke' as const }} />
                   )}
                   {!isDrawing && regions.map((region, index) => {
                       const isPointerMode = drawingTool === 'pointer';
@@ -380,7 +383,8 @@ const App: React.FC = () => {
                           strokeWidth: 2,
                           strokeDasharray: isPointerMode ? 'none' : '4 4',
                           className: `transition-colors ${isPointerMode ? 'cursor-pointer' : 'pointer-events-none'}`,
-                          style: { vectorEffect: 'non-scaling-stroke' },
+                          // Fix: Added 'as const' to correctly type the vectorEffect style property for SVG elements.
+                          style: { vectorEffect: 'non-scaling-stroke' as const },
                           onClick: isPointerMode ? (e: React.MouseEvent) => { e.stopPropagation(); removeRegion(index); } : undefined,
                       };
                       if (region.type === 'rectangle') return <rect key={index} x={region.x} y={region.y} width={region.width} height={region.height} {...commonProps} />;
