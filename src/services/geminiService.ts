@@ -1,7 +1,9 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import type { RectangleRegion } from '../types';
 
-// FIX: Per coding guidelines, API key must be obtained from process.env.API_KEY. This also resolves the TypeScript error.
+// FIX: Per coding guidelines, API key must be obtained from process.env.API_KEY.
+// This resolves the TypeScript error on import.meta.env and aligns with project standards.
 const API_KEY = process.env.API_KEY;
 
 if (!API_KEY) {
