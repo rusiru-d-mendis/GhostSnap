@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect, useCallback, useLayoutEffect } from
 import { detectSensitiveAreas, isApiConfigured } from './services/geminiService';
 import type { Point, DrawingRegion, RectangleRegion } from './types';
 import { UploadIcon, SparklesIcon, TrashIcon, DownloadIcon, RectangleIcon, CircleIcon, PencilIcon, UndoIcon, RedoIcon, PointerIcon } from './components/Icons';
+import ReloadPrompt from './components/ReloadPrompt';
 
 type DrawingTool = 'rectangle' | 'ellipse' | 'freehand' | 'pointer';
 
@@ -317,6 +318,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col p-6 md:p-12">
+      <ReloadPrompt />
       <div className="w-full max-w-7xl mx-auto">
         <header className="text-center mb-10">
           <h1 className="text-5xl md:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600">GhostSnap</h1>
