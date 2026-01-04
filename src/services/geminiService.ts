@@ -1,11 +1,13 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import type { RectangleRegion } from '../types';
 
+// FIX: Per coding guidelines, API key must be obtained from process.env.API_KEY. This also resolves the TypeScript error.
 const API_KEY = process.env.API_KEY;
-
-const ai = API_KEY ? new GoogleGenAI({ apiKey: API_KEY }) : null;
-export const isApiConfigured = !!ai;
+if (!API_KEY) {
+  // FIX: Updated error message to be more generic and not instruct user on how to set the key.
+  throw new Error("API_KEY environment variable not set.");
+}
+const ai = new GoogleGenAI({ apiKey: API_KEY });
 
 const fileToGenerativePart = async (file: File) => {
   const base64EncodedDataPromise = new Promise<string>((resolve) => {
@@ -33,10 +35,6 @@ const responseSchema = {
 };
 
 export const detectSensitiveAreas = async (imageFile: File): Promise<Omit<RectangleRegion, 'type'>[]> => {
-  if (!ai) {
-    throw new Error("Gemini API key not configured.");
-  }
-
   const imagePart = await fileToGenerativePart(imageFile);
   
   const prompt = `
