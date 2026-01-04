@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { DownloadIcon } from './Icons';
 
