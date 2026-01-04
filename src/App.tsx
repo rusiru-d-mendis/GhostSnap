@@ -133,7 +133,8 @@ const App: React.FC = () => {
 
       if (effectType === 'blur') {
         ctx.filter = `blur(${blurAmount}px)`;
-        ctx.drawImage(canvas, 0, 0);
+        // FIX: Draw from the original image, not the canvas, to prevent compounding blurs.
+        ctx.drawImage(image, 0, 0);
       } else if (effectType === 'pixelate') {
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
