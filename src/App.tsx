@@ -104,49 +104,17 @@ const App: React.FC = () => {
   const redrawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     const image = imageRef.current;
-    if (!canvas || !image.src || !image.complete || image.naturalWidth === 0) return;
+    if (!canvas || !image.src || image.naturalWidth === 0) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
     canvas.width = image.naturalWidth;
     canvas.height = image.naturalHeight;
-
-    // Create a temporary off-screen canvas for the effect version of the image
-    const effectCanvas = document.createElement('canvas');
-    effectCanvas.width = canvas.width;
-    effectCanvas.height = canvas.height;
-    const effectCtx = effectCanvas.getContext('2d');
-    if (!effectCtx) return;
-
-    // Create the fully blurred or pixelated image on the temporary canvas ONCE.
-    if (regions.length > 0) {
-      if (effectType === 'blur') {
-          effectCtx.filter = `blur(${blurAmount}px)`;
-          effectCtx.drawImage(image, 0, 0);
-      } else if (effectType === 'pixelate') {
-          effectCtx.imageSmoothingEnabled = false;
-          const size = pixelationLevel;
-          const w = image.naturalWidth;
-          const h = image.naturalHeight;
-          const tempPixelCanvas = document.createElement('canvas');
-          const tempPixelCtx = tempPixelCanvas.getContext('2d');
-          if (tempPixelCtx) {
-              tempPixelCanvas.width = Math.max(1, w / size);
-              tempPixelCanvas.height = Math.max(1, h / size);
-              tempPixelCtx.drawImage(image, 0, 0, tempPixelCanvas.width, tempPixelCanvas.height);
-              effectCtx.drawImage(tempPixelCanvas, 0, 0, tempPixelCanvas.width, tempPixelCanvas.height, 0, 0, w, h);
-          }
-          effectCtx.imageSmoothingEnabled = true;
-      }
-    }
-
-    // Start with the clean, original image on the main canvas.
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(image, 0, 0);
 
-    // For each region, use it as a "mask" to draw the content from the effect canvas on top.
     regions.forEach(region => {
       ctx.save();
-      
       ctx.beginPath();
       if (region.type === 'rectangle' || region.type === 'ellipse') {
         if (region.type === 'ellipse') {
@@ -163,10 +131,27 @@ const App: React.FC = () => {
       }
       ctx.clip();
 
-      // Inside the clipped region, draw the pre-rendered effect canvas.
-      ctx.drawImage(effectCanvas, 0, 0);
+      if (effectType === 'blur') {
+        ctx.filter = `blur(${blurAmount}px)`;
+        ctx.drawImage(canvas, 0, 0);
+      } else if (effectType === 'pixelate') {
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        if (tempCtx) {
+          ctx.imageSmoothingEnabled = false;
+          const size = pixelationLevel;
+          const w = image.naturalWidth;
+          const h = image.naturalHeight;
+          tempCanvas.width = Math.max(1, w / size);
+          tempCanvas.height = Math.max(1, h / size);
+          tempCtx.drawImage(image, 0, 0, tempCanvas.width, tempCanvas.height);
+          ctx.drawImage(tempCanvas, 0, 0, tempCanvas.width, tempCanvas.height, 0, 0, w, h);
+          ctx.imageSmoothingEnabled = true;
+        }
+      }
       
       ctx.restore();
+      ctx.filter = 'none';
     });
 
     setProcessedImageUrl(canvas.toDataURL());
