@@ -106,44 +106,20 @@ const App: React.FC = () => {
     const canvas = canvasRef.current;
     const image = imageRef.current;
     if (!canvas || !image.src || !image.complete || image.naturalWidth === 0) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return;
     
     canvas.width = image.naturalWidth;
     canvas.height = image.naturalHeight;
 
-    const effectCanvas = document.createElement('canvas');
-    effectCanvas.width = canvas.width;
-    effectCanvas.height = canvas.height;
-    const effectCtx = effectCanvas.getContext('2d');
-    if (!effectCtx) return;
-
-    if (regions.length > 0) {
-      if (effectType === 'blur') {
-          effectCtx.filter = `blur(${blurAmount}px)`;
-          effectCtx.drawImage(image, 0, 0);
-      } else if (effectType === 'pixelate') {
-          effectCtx.imageSmoothingEnabled = false;
-          const size = pixelationLevel;
-          const w = image.naturalWidth;
-          const h = image.naturalHeight;
-          const tempPixelCanvas = document.createElement('canvas');
-          const tempPixelCtx = tempPixelCanvas.getContext('2d');
-          if (tempPixelCtx) {
-              tempPixelCanvas.width = Math.max(1, w / size);
-              tempPixelCanvas.height = Math.max(1, h / size);
-              tempPixelCtx.drawImage(image, 0, 0, tempPixelCanvas.width, tempPixelCanvas.height);
-              effectCtx.drawImage(tempPixelCanvas, 0, 0, tempPixelCanvas.width, tempPixelCanvas.height, 0, 0, w, h);
-          }
-          effectCtx.imageSmoothingEnabled = true;
-      }
-    }
-
+    // 1. Draw the original image as the base layer
     ctx.drawImage(image, 0, 0);
 
+    // 2. Apply effects for each region individually
     regions.forEach(region => {
       ctx.save();
       
+      // Create clipping path for the region
       ctx.beginPath();
       if (region.type === 'rectangle' || region.type === 'ellipse') {
         if (region.type === 'ellipse') {
@@ -160,9 +136,56 @@ const App: React.FC = () => {
       }
       ctx.clip();
 
-      ctx.drawImage(effectCanvas, 0, 0);
+      // Apply effect within the clipped area
+      if (effectType === 'blur') {
+          ctx.filter = `blur(${blurAmount}px)`;
+          // Redraw the image inside the clipped, blurred area
+          ctx.drawImage(image, 0, 0);
+      } else if (effectType === 'pixelate') {
+          const size = pixelationLevel;
+          // To pixelate, we draw a tiny version of the clipped region, then scale it up
+          const tempCanvas = document.createElement('canvas');
+          const tempCtx = tempCanvas.getContext('2d');
+          if (tempCtx) {
+              // FIX: Calculate bounding box for all region types to safely access dimensions.
+              let regionBounds: { x: number; y: number; width: number; height: number; };
+              if (region.type === 'path') {
+                if (region.points.length === 0) {
+                    ctx.restore();
+                    return;
+                }
+                let minX = region.points[0].x, minY = region.points[0].y, maxX = region.points[0].x, maxY = region.points[0].y;
+                region.points.forEach(p => {
+                    minX = Math.min(minX, p.x);
+                    minY = Math.min(minY, p.y);
+                    maxX = Math.max(maxX, p.x);
+                    maxY = Math.max(maxY, p.y);
+                });
+                regionBounds = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+              } else {
+                regionBounds = region;
+              }
+
+              if (regionBounds.width <= 0 || regionBounds.height <= 0) {
+                  ctx.restore();
+                  return;
+              }
+              const w = Math.max(1, Math.round(regionBounds.width / size));
+              const h = Math.max(1, Math.round(regionBounds.height / size));
+              tempCanvas.width = w;
+              tempCanvas.height = h;
+
+              // Draw the specific part of the image to the tiny canvas
+              tempCtx.drawImage(image, regionBounds.x, regionBounds.y, regionBounds.width, regionBounds.height, 0, 0, w, h);
+              
+              // Scale the tiny canvas back up to the original clipped area
+              ctx.imageSmoothingEnabled = false;
+              ctx.drawImage(tempCanvas, 0, 0, w, h, regionBounds.x, regionBounds.y, regionBounds.width, regionBounds.height);
+              ctx.imageSmoothingEnabled = true;
+          }
+      }
       
-      ctx.restore();
+      ctx.restore(); // remove the clip and filter for the next region
     });
 
     setProcessedImageUrl(canvas.toDataURL());
