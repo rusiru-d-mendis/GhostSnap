@@ -1,5 +1,6 @@
+
 import React, { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
-import { detectSensitiveAreas } from './services/geminiService';
+import { detectSensitiveAreas, isApiConfigured } from './services/geminiService';
 import type { Point, DrawingRegion, RectangleRegion } from './types';
 import { UploadIcon, SparklesIcon, TrashIcon, DownloadIcon, RectangleIcon, CircleIcon, PencilIcon, UndoIcon, RedoIcon, PointerIcon } from './components/Icons';
 
@@ -31,6 +32,21 @@ const App: React.FC = () => {
   const [currentRect, setCurrentRect] = useState<RectangleRegion | null>(null);
   const [currentPath, setCurrentPath] = useState<Point[]>([]);
   const [renderedSize, setRenderedSize] = useState({ width: 0, height: 0 });
+
+  if (!isApiConfigured) {
+    return (
+      <div className="min-h-screen bg-red-50 text-red-800 flex flex-col items-center justify-center p-4">
+        <div className="text-center bg-white p-8 rounded-lg shadow-2xl border border-red-200">
+          <h1 className="text-3xl font-bold mb-4">Configuration Error</h1>
+          <p className="text-lg">The Gemini API key is not configured.</p>
+          <p className="mt-2 text-md text-slate-600">Please add your `VITE_API_KEY` to the environment variables in your deployment settings.</p>
+          <a href="https://vercel.com/docs/projects/environment-variables" target="_blank" rel="noopener noreferrer" className="mt-6 inline-block bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition-colors">
+            Vercel Docs
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   useLayoutEffect(() => {
     const calculateSize = () => {
